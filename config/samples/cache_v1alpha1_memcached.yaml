@@ -1,0 +1,8 @@
+apiVersion: cache.example.com/v1alpha1
+kind: Memcached
+metadata:
+  name: memcached-sample
+  namespace: project-320174648
+spec:
+  # TODO(user): Add fields here
+  size: 3
