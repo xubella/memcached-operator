@@ -29,7 +29,7 @@ import (
 
 	//"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
-	"knative.dev/pkg/apis"
+	//"knative.dev/pkg/apis"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -72,24 +72,6 @@ func (r *MemcachedReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	// Fetch the Memcached instance
 	memcached := &cachev1alpha1.Memcached{}
 	err := r.Get(ctx, req.NamespacedName, memcached)
-	ctrl.Log.Info("finish fetch ...")
-	condition := memcached.GetStatusCondition().GetCondition(apis.ConditionSucceeded)
-	if condition == nil {
-		ctrl.Log.Info("PipelineRun not ready.", memcached.Namespace, memcached.Name)
-		//return ctrl.Result{}, nil
-	}
-	if condition.IsTrue() {
-		ctrl.Log.Info("PipelineRun created by Run has succeeded", memcached.Namespace, memcached.Name)
-		//return ctrl.Result{}, nil
-	}
-	if condition.IsFalse() {
-		ctrl.Log.Info("PipelineRun created by Run has failed", memcached.Namespace, memcached.Name)
-		//return ctrl.Result{}, nil
-	}
-	if condition.IsUnknown() {
-		ctrl.Log.Info("PipelineRun created by Run is still running", memcached.Namespace, memcached.Name)
-		//return ctrl.Result{}, nil
-	}
 
 	if err != nil {
 		if errors.IsNotFound(err) {
@@ -163,6 +145,8 @@ func (r *MemcachedReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		// 	return ctrl.Result{}, err
 		// }
 
+	} else {
+		memcached.Status.MarkRunFailed(ReasonRunFailedUnkown, "git clone custom task failed")
 	}
 
 	// Update status.Nodes if needed
@@ -228,11 +212,6 @@ func getPodNames(pods []corev1.Pod) []string {
 	for _, pod := range pods {
 		podNames = append(podNames, pod.Name)
 	}
-	fmt.Println("============")
-	fmt.Println(podNames)
-	for _, name := range podNames {
-		fmt.Println(name)
-	}
 	return podNames
 }
 
@@ -244,7 +223,6 @@ func getPodPhase(pods []corev1.Pod) string {
 	}
 	status := "Running"
 	for _, phase := range podPhase {
-		fmt.Println(phase)
 		if phase != "Running" {
 			status = "Failed"
 			break

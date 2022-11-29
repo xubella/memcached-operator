@@ -17,6 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	tektonv1beta1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"knative.dev/pkg/apis"
 	duckv1beta1 "knative.dev/pkg/apis/duck/v1beta1"
@@ -32,6 +33,20 @@ type MemcachedSpec struct {
 
 	// Foo is an example field of Memcached. Edit memcached_types.go to remove/update
 	Size int32 `json:"size"`
+
+	URL string `json:"url"`
+	// +optional
+	Repository string `json:"repository"`
+	// +optional
+	Branch string `json:"branch"`
+	// +optional
+	Reversion string `json:"reversion"`
+	// +optional
+	BranchTrim string `json:"branch-trim"`
+
+	// +listType=atomic
+	// +optional
+	Workspaces []tektonv1beta1.WorkspaceBinding `json:"workspaces,omitempty"`
 }
 
 // MemcachedStatus defines the observed state of Memcached
@@ -44,10 +59,10 @@ type MemcachedStatus struct {
 	duckv1beta1.Status `json:",inline"`
 
 	// RunStatusFields inlines the status fields.
-	RunStatusFields `json:",inline"`
+	MemcachedStatusFields `json:",inline"`
 }
 
-type RunStatusFields struct {
+type MemcachedStatusFields struct {
 	// StartTime is the time the build is actually started.
 	// +optional
 	StartTime *metav1.Time `json:"startTime,omitempty"`
