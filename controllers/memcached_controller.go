@@ -17,7 +17,7 @@ limitations under the License.
 package controllers
 
 import (
-	//"fmt"
+	"fmt"
 	"reflect"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -29,6 +29,7 @@ import (
 
 	//"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
+	"knative.dev/pkg/apis"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -42,6 +43,15 @@ type MemcachedReconciler struct {
 	Scheme *runtime.Scheme
 	//Log    logr.Logger
 }
+
+const (
+
+	// ReasonRunFailedCreatingPipelineRun indicates that the reason for failure status is that Run failed
+	// to create PipelineRun
+	ReasonRunSuccess = "ReasonRunSuccess"
+
+	ReasonRunFailedUnkown = "ReasonRunFailedUnkown"
+)
 
 //+kubebuilder:rbac:groups=cache.example.com,resources=memcacheds,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=cache.example.com,resources=memcacheds/status,verbs=get;update;patch
@@ -63,6 +73,24 @@ func (r *MemcachedReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	memcached := &cachev1alpha1.Memcached{}
 	err := r.Get(ctx, req.NamespacedName, memcached)
 	ctrl.Log.Info("finish fetch ...")
+	condition := memcached.GetStatusCondition().GetCondition(apis.ConditionSucceeded)
+	if condition == nil {
+		ctrl.Log.Info("PipelineRun not ready.", memcached.Namespace, memcached.Name)
+		//return ctrl.Result{}, nil
+	}
+	if condition.IsTrue() {
+		ctrl.Log.Info("PipelineRun created by Run has succeeded", memcached.Namespace, memcached.Name)
+		//return ctrl.Result{}, nil
+	}
+	if condition.IsFalse() {
+		ctrl.Log.Info("PipelineRun created by Run has failed", memcached.Namespace, memcached.Name)
+		//return ctrl.Result{}, nil
+	}
+	if condition.IsUnknown() {
+		ctrl.Log.Info("PipelineRun created by Run is still running", memcached.Namespace, memcached.Name)
+		//return ctrl.Result{}, nil
+	}
+
 	if err != nil {
 		if errors.IsNotFound(err) {
 			// Request object not found, could have been deleted after reconcile request.
@@ -120,6 +148,22 @@ func (r *MemcachedReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, err
 	}
 	podNames := getPodNames(podList.Items)
+	if getPodPhase(podList.Items) == "Running" {
+		memcached.Status.MarkRunSucceeded(ReasonRunSuccess, "git clone custom task success")
+		// condition := memcached.GetStatusCondition().GetCondition(apis.ConditionSucceeded)
+		// if condition == nil {
+		// 	ctrl.Log.Info("memcached not ready.", memcached.Namespace, memcached.Name)
+		// }
+		// if condition.IsTrue() {
+		// 	ctrl.Log.Info("memcached created has succeeded", memcached.Namespace, memcached.Name)
+		// }
+
+		// if err := memcached.Status().Update(ctx, memcached); err != nil {
+		// 	ctrl.Log.Error(err, "Run got an error creating pipelineRun")
+		// 	return ctrl.Result{}, err
+		// }
+
+	}
 
 	// Update status.Nodes if needed
 	if !reflect.DeepEqual(podNames, memcached.Status.Nodes) {
@@ -184,8 +228,37 @@ func getPodNames(pods []corev1.Pod) []string {
 	for _, pod := range pods {
 		podNames = append(podNames, pod.Name)
 	}
+	fmt.Println("============")
+	fmt.Println(podNames)
+	for _, name := range podNames {
+		fmt.Println(name)
+	}
 	return podNames
 }
+
+// getPodNames returns the pod names of the array of pods passed in
+func getPodPhase(pods []corev1.Pod) string {
+	var podPhase []string
+	for _, pod := range pods {
+		podPhase = append(podPhase, fmt.Sprintf("%v", pod.Status.Phase))
+	}
+	status := "Running"
+	for _, phase := range podPhase {
+		fmt.Println(phase)
+		if phase != "Running" {
+			status = "Failed"
+			break
+		}
+	}
+	return status
+}
+
+// // MarkRunSucceeded changes the Succeeded condition to True with the provided reason and message.
+// func (r *RunStatus) MarkRunSucceeded(reason, messageFormat string, messageA ...interface{}) {
+// 	runCondSet.Manage(r).MarkTrueWithReason(apis.ConditionSucceeded, reason, messageFormat, messageA...)
+// 	succeeded := r.GetCondition(apis.ConditionSucceeded)
+// 	r.CompletionTime = &succeeded.LastTransitionTime.Inner
+// }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *MemcachedReconciler) SetupWithManager(mgr ctrl.Manager) error {

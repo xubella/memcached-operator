@@ -18,6 +18,8 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"knative.dev/pkg/apis"
+	duckv1beta1 "knative.dev/pkg/apis/duck/v1beta1"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
@@ -38,6 +40,34 @@ type MemcachedStatus struct {
 	// Important: Run "make" to regenerate code after modifying this file
 
 	Nodes []string `json:"nodes"`
+
+	duckv1beta1.Status `json:",inline"`
+
+	// RunStatusFields inlines the status fields.
+	RunStatusFields `json:",inline"`
+}
+
+type RunStatusFields struct {
+	// StartTime is the time the build is actually started.
+	// +optional
+	StartTime *metav1.Time `json:"startTime,omitempty"`
+
+	// CompletionTime is the time the build completed.
+	// +optional
+	CompletionTime *metav1.Time `json:"completionTime,omitempty"`
+
+	// Results reports any output result values to be consumed by later
+	// tasks in a pipeline.
+	// +optional
+	//Results []RunResult `json:"results,omitempty"`
+
+	// RetriesStatus contains the history of RunStatus, in case of a retry.
+	// +optional
+	//RetriesStatus []RunStatus `json:"retriesStatus,omitempty"`
+
+	// ExtraFields holds arbitrary fields provided by the custom task
+	// controller.
+	//ExtraFields runtime.RawExtension `json:"extraFields,omitempty"`
 }
 
 //+kubebuilder:object:root=true
@@ -63,4 +93,24 @@ type MemcachedList struct {
 
 func init() {
 	SchemeBuilder.Register(&Memcached{}, &MemcachedList{})
+}
+
+func (m *Memcached) GetStatusCondition() apis.ConditionAccessor {
+	return &m.Status
+}
+
+var memCondSet = apis.NewBatchConditionSet()
+
+// MarkRunSucceeded changes the Succeeded condition to True with the provided reason and message.
+func (m *MemcachedStatus) MarkRunSucceeded(reason, messageFormat string, messageA ...interface{}) {
+	memCondSet.Manage(m).MarkTrueWithReason(apis.ConditionSucceeded, reason, messageFormat, messageA...)
+	succeeded := m.GetCondition(apis.ConditionSucceeded)
+	m.CompletionTime = &succeeded.LastTransitionTime.Inner
+}
+
+// MarkRunFailed changes the Succeeded condition to False with the provided reason and message.
+func (m *MemcachedStatus) MarkRunFailed(reason, messageFormat string, messageA ...interface{}) {
+	memCondSet.Manage(m).MarkFalse(apis.ConditionSucceeded, reason, messageFormat, messageA...)
+	succeeded := m.GetCondition(apis.ConditionSucceeded)
+	m.CompletionTime = &succeeded.LastTransitionTime.Inner
 }
